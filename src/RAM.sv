@@ -4,7 +4,7 @@ module Memory #(
 		parameter ADDRESS_WIDTH = 32,
 		parameter LINE_SIZE = 32,
 		parameter ENTRIES = 1024,
-		parameter DELAY = 20)
+		parameter DELAY = 4)
 	(input clk,
 	input rst,
 	
@@ -22,7 +22,9 @@ module Memory #(
 	integer counter;
 
     initial begin
-	   $readmemh("RAM.mem", RAM);
+//	   $readmemh("RAM.mem", RAM);
+    for(int i = 0; i < ENTRIES; i++)
+        RAM[i] = i + 1;
 	end
 	
 	always_ff @(posedge clk) begin 

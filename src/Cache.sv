@@ -42,7 +42,7 @@ endmodule
 
 module PhysicalCache #(
 		parameter ADDRESS_WIDTH = 32, 
-		parameter SETS = 1024, 
+		parameter SETS = 4, 
 		parameter WAYS = 2, 
 		parameter CACHE_LINE_SIZE = 32,
 		parameter TAG_WIDTH = ADDRESS_WIDTH - ($clog2(SETS) + $clog2(CACHE_LINE_SIZE / 8))

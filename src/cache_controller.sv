@@ -69,12 +69,18 @@ module CacheController #(
 	wire tagMatched; // High if any tag matched
 	logic hit;	// High if the tag matched and the matched cache line is Valid
 	logic [$clog2(WAYS) - 1 : 0] hitWay;	// Which Way Hit
-	logic [$clog2(WAYS) - 1 : 0] replacementWay = 0;	// TODO: Which Way to replace
+	wire [WAYS - 1 : 0] replacementWay;	// TODO: Which Way to replace
+
+	logic [WAYS - 1 : 0] validWays;		// Valid Ways from set read
+	logic [WAYS - 1 : 0] dirtyWays;		// Drity Ways from set read
+
+	ReplacementLogic #(.WAYS(WAYS)) replacementLogic (.clk(clk), .rst(rst), .ValidWays(validWays), .replacementWay(replacementWay));
 	
 	assign tagMatched = |fromTagComparatorHitVector;
 
 	assign addressTag = reqAddress_CPU[ADDRESS_WIDTH - 1 -: TAG_WIDTH];
 
+	// Computing Hit
 	always_comb begin
 		hit = 0;
 		for(int i = 0; i < WAYS; i++)
@@ -82,11 +88,26 @@ module CacheController #(
 				hit = 1;
 	end
 
+	// Computing which way hit
 	always_comb begin
 		hitWay = 0;
 		for(int i = 0; i < WAYS; i++)
 			if(fromTagComparatorHitVector[i])
 				hitWay = i;
+	end
+
+	// Computing the Valid Ways
+	always_comb begin
+		validWays = 0;
+		for(int i = 0; i < WAYS; i++)
+			validWays[i] = fromCacheValidDirty[i][0];	// First Bit is Valid
+	end
+
+	// Computing the Dirty Ways
+	always_comb begin
+		dirtyWays = 0;
+		for(int i = 0; i < WAYS; i++)
+			dirtyWays[i] = fromCacheValidDirty[i][1];	// Second bit is Dirty
 	end
 	
 	// Assigning Next state on clock cycle
@@ -168,12 +189,13 @@ module CacheController #(
 		if(state == WRITE_HIT)
 			toCacheWenData = 1 << hitWay;
 		else if(state == CREATE_CACHE_ENTRY)
-			toCacheWenData = 1 << replacementWay;
+			toCacheWenData = replacementWay;
 	end
 	
 	assign toCacheReq = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY;
-	assign toCacheAddress = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY ? reqAddress_CPU : 0;
-	assign toCacheWenTag = state == CREATE_CACHE_ENTRY ? (1 << replacementWay) : 0;
+	// assign toCacheAddress = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY | state == TAG_MATCH ? reqAddress_CPU : 0;	// Tag Comparator also needs Address during TAG_MATCH phase
+	assign toCacheAddress = reqAddress_CPU;
+	assign toCacheWenTag = state == CREATE_CACHE_ENTRY ? replacementWay : 0;
 	assign toCacheTag = state == CREATE_CACHE_ENTRY ? addressTag : 0;
 
 	assign reqValid_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP);
@@ -184,7 +206,7 @@ module CacheController #(
 	always_comb begin
 		for(int i = 0; i < WAYS; i++) begin
 			toCacheValidDirty[i] = 2'b00;
-			if(i == replacementWay)
+			if(replacementWay[i] == 1'b1)
 				toCacheValidDirty[i] = 2'b01;	// 0th bit is valid
 		end
 	end

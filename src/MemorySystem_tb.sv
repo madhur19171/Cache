@@ -30,11 +30,45 @@ module MemorySystem_tb;
      end
      
      initial begin
+     
+        // Testing Replacement Start
         #50;
         reqAddress_CPU = 32'h00000000;
         reqValid_CPU = 1;
         wait(respHit_CPU)
             #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000010;
+        reqValid_CPU = 1;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000000;
+        reqValid_CPU = 1;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000010;
+        reqValid_CPU = 1;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000020;
+        reqValid_CPU = 1;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000030;
+        reqValid_CPU = 1;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        // Testing Repalcement Ends
             
         #10;
         reqAddress_CPU = 32'h00000004;
