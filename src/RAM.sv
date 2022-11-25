@@ -24,7 +24,7 @@ module Memory #(
     initial begin
 //	   $readmemh("RAM.mem", RAM);
     for(int i = 0; i < ENTRIES; i++)
-        RAM[i] = i + 1;
+        RAM[i] = 0;
 	end
 	
 	always_ff @(posedge clk) begin 

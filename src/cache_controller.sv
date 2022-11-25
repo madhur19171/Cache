@@ -37,7 +37,7 @@ module CacheController #(
 		input [WAYS - 1 : 0] fromTagComparatorHitVector,
 		
 		// To Cache
-		output toCacheReq,
+		output logic toCacheReq,
 		output [ADDRESS_WIDTH - 1 : 0] toCacheAddress,
 		output logic [CACHE_LINE_SIZE - 1 : 0] toCacheData,
 		output logic [WAYS - 1 : 0] toCacheWenData,
@@ -57,6 +57,8 @@ module CacheController #(
 					READ_MISS, 
 					WRITE_MISS,
 					SEND_REQ_TO_MEM,
+					SEND_WT_TO_MEM,
+					WAIT_WT_RESP,
 					WAIT_MEM_RESP,
 					CREATE_CACHE_ENTRY,
 					SEND_RESP_TO_CPU
@@ -68,7 +70,7 @@ module CacheController #(
 
 	wire tagMatched; // High if any tag matched
 	logic hit;	// High if the tag matched and the matched cache line is Valid
-	logic [$clog2(WAYS) - 1 : 0] hitWay;	// Which Way Hit
+	logic [WAYS - 1 : 0] hitWay;	// Which Way Hit
 	wire [WAYS - 1 : 0] replacementWay;	// TODO: Which Way to replace
 
 	logic [WAYS - 1 : 0] validWays;		// Valid Ways from set read
@@ -90,10 +92,7 @@ module CacheController #(
 
 	// Computing which way hit
 	always_comb begin
-		hitWay = 0;
-		for(int i = 0; i < WAYS; i++)
-			if(fromTagComparatorHitVector[i])
-				hitWay = i;
+		hitWay = fromTagComparatorHitVector;
 	end
 
 	// Computing the Valid Ways
@@ -146,17 +145,22 @@ module CacheController #(
 			READ_HIT:
 						nextState = SEND_RESP_TO_CPU;
 			READ_MISS:
+						nextState = SEND_REQ_TO_MEM;	// No need to handle replacement of dirty data as memory and cache are always coherent(WT)
+			WRITE_HIT:
+						nextState = SEND_WT_TO_MEM;
+			WRITE_MISS:
 						nextState = SEND_REQ_TO_MEM;
+			SEND_WT_TO_MEM:
+						nextState = (reqValid_MEM) ? WAIT_WT_RESP : SEND_WT_TO_MEM;
+			WAIT_WT_RESP:
+						nextState = (respValid_MEM) ? SEND_RESP_TO_CPU : WAIT_WT_RESP;
 			SEND_REQ_TO_MEM:
 						nextState = (reqValid_MEM) ? WAIT_MEM_RESP : SEND_REQ_TO_MEM;
 			WAIT_MEM_RESP:
 						nextState = (respValid_MEM) ? CREATE_CACHE_ENTRY : WAIT_MEM_RESP;
 			CREATE_CACHE_ENTRY:
 						if(toCacheReq & |toCacheWenTag)   // Cache Entry is created once the request to cache is sent with a write to the tag array
-							if(reqWen_CPU)
-								nextState = IDLE;	// TODO
-							else
-								nextState = SEND_REQ_TO_CACHE;	// Resend the request to the cache after a Miss
+							nextState = SEND_REQ_TO_CACHE;	// Resend the request to the cache after a Miss
 						else	
 							nextState = CREATE_CACHE_ENTRY;
 
@@ -187,21 +191,32 @@ module CacheController #(
 	always_comb begin
 		toCacheWenData = 0;
 		if(state == WRITE_HIT)
-			toCacheWenData = 1 << hitWay;
+			toCacheWenData = hitWay;
 		else if(state == CREATE_CACHE_ENTRY)
 			toCacheWenData = replacementWay;
 	end
 	
-	assign toCacheReq = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY;
+	// logic for toCacheReq
+	always_comb begin
+		if(state == SEND_REQ_TO_CACHE)
+			toCacheReq = 1;	// Send request to Cache to read the Tags
+		else if(state == CREATE_CACHE_ENTRY)
+			toCacheReq = 1;	// Send request to Cache to Create a new entry
+		else if(state == WRITE_HIT)
+			toCacheReq = 1;	// Send request to Cache to Write the data
+		else 
+			toCacheReq = 0;
+	end
+
 	// assign toCacheAddress = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY | state == TAG_MATCH ? reqAddress_CPU : 0;	// Tag Comparator also needs Address during TAG_MATCH phase
 	assign toCacheAddress = reqAddress_CPU;
 	assign toCacheWenTag = state == CREATE_CACHE_ENTRY ? replacementWay : 0;
-	assign toCacheTag = state == CREATE_CACHE_ENTRY ? addressTag : 0;
+	assign toCacheTag = addressTag;
 
-	assign reqValid_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP);
-	assign reqAddress_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP) ? reqAddress_CPU : 0;
-	// assign reqDataOut_MEM = state == SEND_REQ_TO_MEM ? // TODO: Incroporate Replacement, Eviction and Write Through
-	assign reqWen_MEM = 0;	// TODO
+	assign reqValid_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP) | (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
+	assign reqAddress_MEM = reqAddress_CPU;
+	assign reqWen_MEM = (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
+	assign reqDataOut_MEM = reqDataIn_CPU;
 
 	always_comb begin
 		for(int i = 0; i < WAYS; i++) begin

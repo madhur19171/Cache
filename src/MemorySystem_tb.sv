@@ -31,8 +31,54 @@ module MemorySystem_tb;
      
      initial begin
      
-        // Testing Replacement Start
+        // Cache Warm up Start
         #50;
+        reqAddress_CPU = 32'h00000000;
+        reqValid_CPU = 1;
+        reqWen_CPU = 1;
+        reqDataIn_CPU = 32'h002342ab;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000010;
+        reqValid_CPU = 1;
+        reqWen_CPU = 1;
+        reqDataIn_CPU = 32'h849292bb;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000020;
+        reqValid_CPU = 1;
+        reqWen_CPU = 1;
+        reqDataIn_CPU = 32'h19475820;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000018;
+        reqValid_CPU = 1;
+        reqWen_CPU = 1;
+        reqDataIn_CPU = 32'h55739084;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        #10;
+        reqAddress_CPU = 32'h00000024;
+        reqValid_CPU = 1;
+        reqWen_CPU = 1;
+        reqDataIn_CPU = 32'h47390121;
+        wait(respHit_CPU)
+            #10 reqValid_CPU = 0;
+            
+        // Cache Warm up End
+        
+        reqWen_CPU = 0;
+        reqDataIn_CPU = 32'h00000000;
+        
+        // Testing Replacement Start
+        #10;
         reqAddress_CPU = 32'h00000000;
         reqValid_CPU = 1;
         wait(respHit_CPU)
