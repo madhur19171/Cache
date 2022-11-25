@@ -225,5 +225,17 @@ module CacheController #(
 				toCacheValidDirty[i] = 2'b01;	// 0th bit is valid
 		end
 	end
+
+	// Logging
+`ifdef LOGGING
+	always_ff @(posedge clk)
+		case(state)
+			READ_HIT: $display("[Read Hit] Address: 0x%x", reqAddress_CPU);
+			WRITE_HIT: $display("[Write Hit] Address: 0x%x\tData: 0x%x", reqAddress_CPU, reqDataIn_CPU);
+			READ_MISS: $display("[Read Miss] Address: 0x%x", reqAddress_CPU);
+			WRITE_MISS: $display("[Write Miss] Address: 0x%x\tData: 0x%x", reqAddress_CPU, reqDataIn_CPU);
+		endcase
+
+`endif
 	
 endmodule 
