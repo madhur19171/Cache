@@ -12,6 +12,7 @@ module Memory #(
 	input [ADDRESS_WIDTH - 1 : 0] reqAddress,
 	input [LINE_SIZE -1 : 0]reqDataIn,
 	input reqWen,
+	input [(LINE_SIZE / 8) -1 : 0] reqStrobe,
 	//From Memory
 	output logic respValid,
 	output logic [LINE_SIZE - 1 : 0] respDataOut
@@ -50,8 +51,13 @@ module Memory #(
 	always_ff @(posedge clk) begin
 		if(rst)
 			respDataOut <= 0;
-		else if(reqValid & reqWen)
-			RAM[reqAddress[ADDRESS_WIDTH - 1 : 2]] <= reqDataIn;
+		else if(reqValid & reqWen) begin
+			for(int i = 0; i < (LINE_SIZE / 8); i++) begin
+				if(reqStrobe[i] == 1) begin
+					RAM[reqAddress[ADDRESS_WIDTH - 1 : 2]][i * 8 +: 8] <= reqDataIn[i * 8 +: 8];
+				end
+			end
+		end
 		else if(reqValid)
 			respDataOut <= RAM[reqAddress[ADDRESS_WIDTH - 1 : 2]];
 	end

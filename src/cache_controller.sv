@@ -16,6 +16,7 @@ module CacheController #(
 		input [ADDRESS_WIDTH - 1 : 0] reqAddress_CPU,
 		input [CACHE_LINE_SIZE -1 : 0]reqDataIn_CPU,
 		input reqWen_CPU,
+		input [(CACHE_LINE_SIZE / 8) -1 : 0] reqStrobe_CPU,
 		//To CPU
 		output reg [CACHE_LINE_SIZE - 1 : 0] respDataOut_CPU,    // Connect to from cache data
 		output reg respHit_CPU,
@@ -25,6 +26,7 @@ module CacheController #(
 		output [ADDRESS_WIDTH - 1 : 0] reqAddress_MEM,
 		output [CACHE_LINE_SIZE -1 : 0]reqDataOut_MEM,
 		output reqWen_MEM,
+		output [(CACHE_LINE_SIZE / 8) - 1 : 0] reqStrobe_MEM,
 		//From Memory
 		input respValid_MEM,
 		input [CACHE_LINE_SIZE - 1 : 0] respDataIn_MEM,
@@ -40,6 +42,7 @@ module CacheController #(
 		output logic toCacheReq,
 		output [ADDRESS_WIDTH - 1 : 0] toCacheAddress,
 		output logic [CACHE_LINE_SIZE - 1 : 0] toCacheData,
+		output logic [(CACHE_LINE_SIZE / 8) - 1 : 0] toCacheStrobe,
 		output logic [WAYS - 1 : 0] toCacheWenData,
 		output [WAYS - 1 : 0] toCacheWenTag,
 		output [TAG_WIDTH - 1 : 0] toCacheTag,
@@ -186,6 +189,15 @@ module CacheController #(
 			toCacheData = respDataIn_MEM;
 	end
 
+	// Generating Strobe Signal for Cache
+	always_comb begin
+		toCacheStrobe = 0;
+		if(state == WRITE_HIT)
+			toCacheStrobe = reqStrobe_CPU;	// Use Requested strobe on a Write Hit
+		else if(state == CREATE_CACHE_ENTRY)
+			toCacheStrobe = '1;	// Write to all Bytes in the cache line on a Cache Entry Creation
+	end
+
 	// Write Data on the hit way in case of a write hit
 	// Write Data on the Replacement way in case of a cache entry creation
 	always_comb begin
@@ -216,7 +228,8 @@ module CacheController #(
 	assign reqValid_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP) | (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
 	assign reqAddress_MEM = reqAddress_CPU;
 	assign reqWen_MEM = (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
-	assign reqDataOut_MEM = reqDataIn_CPU;
+	assign reqDataOut_MEM = reqDataIn_CPU;	// In case of a write back, we need to get this data from the Cache itself
+	assign reqStrobe_MEM = reqStrobe_CPU;	// In case of a write back, we need to make all the bits 1
 
 	always_comb begin
 		for(int i = 0; i < WAYS; i++) begin

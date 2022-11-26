@@ -9,6 +9,7 @@ module MemorySystem_tb;
 	logic [31 : 0] reqAddress_CPU;
 	logic [31 : 0]reqDataIn_CPU;
 	logic reqWen_CPU;
+	logic [3 : 0] reqStrobe_CPU;
 	//To CPU
 	wire [31 : 0] respDataOut_CPU;    // Connect to from cache data
 	wire respHit_CPU;
@@ -38,11 +39,12 @@ module MemorySystem_tb;
 			#10 reqValid_CPU = 0;
 	endtask
 
-	task CacheWrite(input [31 : 0] address, input [31 : 0] data);
+	task CacheWrite(input [31 : 0] address, input [31 : 0] data, input [3 : 0] strobe);
 		reqAddress_CPU = address;
 		reqValid_CPU = 1;
 		reqWen_CPU = 1;
 		reqDataIn_CPU = data;
+		reqStrobe_CPU = strobe;
 		wait(respHit_CPU)
 			#10 reqValid_CPU = 0;
 	endtask
@@ -50,11 +52,11 @@ module MemorySystem_tb;
 	initial begin
 	
 		// Cache Warm up Start
-		#50 CacheWrite(32'h00000000, 32'h002342ab);
-		#10 CacheWrite(32'h00000010, 32'h849292bb);
-		#10 CacheWrite(32'h00000020, 32'h19475820);
-		#10 CacheWrite(32'h00000018, 32'h55739084);
-		#10 CacheWrite(32'h00000024, 32'h47390121);
+		#50 CacheWrite(32'h00000000, 32'h002342ab, 4'b1111);
+		#10 CacheWrite(32'h00000010, 32'h849292bb, 4'b0110);
+		#10 CacheWrite(32'h00000020, 32'h19475820, 4'b1111);
+		#10 CacheWrite(32'h00000018, 32'h55739084, 4'b1111);
+		#10 CacheWrite(32'h00000024, 32'h47390121, 4'b1111);
 		// Cache Warm up End
 
 		// Testing Replacement Start

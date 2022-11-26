@@ -55,6 +55,7 @@ module PhysicalCache #(
 		input reqValid_CPU,
 		input [ADDRESS_WIDTH - 1 : 0] address_in_CPU,
 		input [CACHE_LINE_SIZE - 1 : 0]data_in_CPU,
+		input [(CACHE_LINE_SIZE / 8) - 1 : 0] strobe_CPU,
 		input wen_CPU,
 		
 		output [CACHE_LINE_SIZE - 1 : 0]data_out_CPU,
@@ -66,6 +67,7 @@ module PhysicalCache #(
 		output [ADDRESS_WIDTH - 1 : 0] reqAddress_MEM,
 		output [CACHE_LINE_SIZE -1 : 0]reqDataOut_MEM,
 		output reqWen_MEM,
+		output [(CACHE_LINE_SIZE / 8) - 1 : 0] reqStrobe_MEM,
 		//From Memory
 		input respValid_MEM,
 		input [CACHE_LINE_SIZE - 1 : 0] respDataIn_MEM
@@ -80,6 +82,7 @@ module PhysicalCache #(
 	wire [ADDRESS_WIDTH - 1 : 0] reqAddress_CPU;
 	wire [CACHE_LINE_SIZE - 1 : 0] reqDataIn_CPU;  
 	wire reqWen_CPU;
+	wire [(CACHE_LINE_SIZE / 8) - 1 : 0] reqStrobe_CPU;
 	
 	wire [CACHE_LINE_SIZE - 1 : 0] respDataOut_CPU;
 	wire respHit_CPU;
@@ -87,6 +90,7 @@ module PhysicalCache #(
 	wire toCacheReq;
 	wire [ADDRESS_WIDTH - 1 : 0] toCacheAddress;
 	wire [CACHE_LINE_SIZE - 1 : 0] toCacheData;
+	wire [(CACHE_LINE_SIZE / 8) - 1 : 0] toCacheStrobe;
 	wire [WAYS - 1 : 0] toCacheWenData;
 	wire [WAYS - 1 : 0] toCacheWenTag;
 	wire [TAG_WIDTH - 1 : 0] toCacheTag;
@@ -101,6 +105,7 @@ module PhysicalCache #(
 	assign reqAddress_CPU = address_in_CPU;
 	assign reqDataIn_CPU = data_in_CPU;
 	assign reqWen_CPU = wen_CPU;
+	assign reqStrobe_CPU = strobe_CPU;
 	
 	assign data_out_CPU = respDataOut_CPU;
 	assign hit_CPU = respHit_CPU;
@@ -115,6 +120,7 @@ module PhysicalCache #(
 		.reqAddress_CPU(reqAddress_CPU),
 		.reqDataIn_CPU(reqDataIn_CPU),
 		.reqWen_CPU(reqWen_CPU),
+		.reqStrobe_CPU(reqStrobe_CPU),
 		//To CPU
 		.respDataOut_CPU(respDataOut_CPU),
 		.respHit_CPU(respHit_CPU),
@@ -124,6 +130,7 @@ module PhysicalCache #(
 		.reqAddress_MEM(reqAddress_MEM),
 		.reqDataOut_MEM(reqDataOut_MEM),
 		.reqWen_MEM(reqWen_MEM),
+		.reqStrobe_MEM(reqStrobe_MEM),
 
 		//From Memory
 		.respValid_MEM(respValid_MEM),
@@ -140,6 +147,7 @@ module PhysicalCache #(
 		.toCacheReq(toCacheReq),
 		.toCacheAddress(toCacheAddress),
 		.toCacheData(toCacheData),
+		.toCacheStrobe(toCacheStrobe),
 		.toCacheWenData(toCacheWenData),
 		.toCacheWenTag(toCacheWenTag),
 		.toCacheTag(toCacheTag),
@@ -155,6 +163,7 @@ module PhysicalCache #(
 			.req(toCacheReq),
 			.address(toCacheAddress),
 			.data_in(toCacheData),
+			.strobe(toCacheStrobe),
 			.wen_data(toCacheWenData),
 			.wen_tag(toCacheWenTag),
 			.tag_in(toCacheTag),
