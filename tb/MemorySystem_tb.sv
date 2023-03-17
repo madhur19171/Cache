@@ -1,18 +1,14 @@
 `timescale 1ns / 1ps
 
+import interface_pkg::*;
+
 module MemorySystem_tb;
 
 	logic clk, rst;
 	
-	// From CPU
-	logic reqValid_CPU;
-	logic [31 : 0] reqAddress_CPU;
-	logic [31 : 0]reqDataIn_CPU;
-	logic reqWen_CPU;
-	logic [3 : 0] reqStrobe_CPU;
-	//To CPU
-	wire [31 : 0] respDataOut_CPU;    // Connect to from cache data
-	wire respHit_CPU;
+	// CPU Interface
+	CPU_Request CPURequest;
+	CPU_Response CPUResponse;
 	
 	MemorySystem MemorySystem_inst (.*);
 	
@@ -22,31 +18,32 @@ module MemorySystem_tb;
 		clk = 0;
 		rst = 1;
 		
-		reqValid_CPU = 0;
-		reqAddress_CPU = 0;
-		reqDataIn_CPU = 0;
-		reqWen_CPU = 0;
+		CPURequest.valid = 0;
+		CPURequest.address = 0;
+		CPURequest.data = 0;
+		CPURequest.wen = 0;
+		CPURequest.strobe = 0;
 		
 		#10 rst = 0;
 	end
 
 	task CacheRead(input [31 : 0] address);
-		reqAddress_CPU = address;
-		reqValid_CPU = 1;
-		reqWen_CPU = 0;
-		reqDataIn_CPU = 32'h00000000;
-		wait(respHit_CPU)
-			#10 reqValid_CPU = 0;
+		CPURequest.address = address;
+		CPURequest.valid = 1;
+		CPURequest.wen = 0;
+		CPURequest.data = 32'h00000000;
+		wait(CPUResponse.hit)
+			#10 CPURequest.valid = 0;
 	endtask
 
 	task CacheWrite(input [31 : 0] address, input [31 : 0] data, input [3 : 0] strobe);
-		reqAddress_CPU = address;
-		reqValid_CPU = 1;
-		reqWen_CPU = 1;
-		reqDataIn_CPU = data;
-		reqStrobe_CPU = strobe;
-		wait(respHit_CPU)
-			#10 reqValid_CPU = 0;
+		CPURequest.address = address;
+		CPURequest.valid = 1;
+		CPURequest.wen = 1;
+		CPURequest.data = data;
+		CPURequest.strobe = strobe;
+		wait(CPUResponse.hit)
+			#10 CPURequest.valid = 0;
 	endtask
 	
 	initial begin
@@ -73,6 +70,13 @@ module MemorySystem_tb;
 		#10 CacheRead(32'h0000000C);
 		#10 CacheRead(32'h00000010);
 		#10 CacheRead(32'h00000000);
+
+		#100 $finish;
+	end
+	
+	initial begin
+		$dumpfile("MemorySystem_tb.vcd");
+		$dumpvars(0, MemorySystem_tb); 
 	end
 	 
 

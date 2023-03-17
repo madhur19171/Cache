@@ -142,7 +142,8 @@ module WayBlock #(
 
 endmodule
 
-module CacheMemory #(
+module CacheMemory import interface_pkg::*;
+	 #(
 		parameter ADDRESS_WIDTH = 32, 
 		parameter SETS = 1024, 
 		parameter WAYS = 2, 
@@ -151,19 +152,15 @@ module CacheMemory #(
 		) (
 	input clk,
 	input rst,
-	input req,
-	input [ADDRESS_WIDTH - 1 : 0] address,
-	input [CACHE_LINE_SIZE - 1 : 0]data_in,
-	input [(CACHE_LINE_SIZE / 8) - 1 : 0] strobe,
-	output reg [CACHE_LINE_SIZE - 1 : 0] data_out [WAYS - 1 : 0],
-	output [1 : 0] valid_dirty_out [WAYS - 1 : 0],
 
-	input [1 : 0] valid_dirty_in [WAYS - 1 : 0],
-	input [WAYS - 1 : 0] wen_data,
-	input [WAYS - 1 : 0] wen_tag,
+	input Cache_Request CacheRequest,
 	
-	output [TAG_WIDTH - 1 : 0]tag_out [WAYS - 1 : 0],
-	input [TAG_WIDTH - 1 : 0]tag_in
+	output reg [CACHE_LINE_SIZE - 1 : 0] data_out [WAYS - 1 : 0],
+	output [1 : 0] [WAYS - 1 : 0] valid_dirty_out ,		// TODO: Not sure if it should be [1 : 0] [WAYS - 1 : 0] or [WAYS - 1 : 0] [1 : 0]
+														// Make the same change in the Tag Comaprator
+
+	
+	output [TAG_WIDTH - 1 : 0] tag_out [WAYS - 1 : 0]
 );
 
 	genvar i;
@@ -173,20 +170,18 @@ module CacheMemory #(
 				(.clk(clk),
 				.rst(rst),
 				
-				.address(address),
-				
-				.valid_dirty_in(valid_dirty_in[i]),
-				.data_in(data_in),
-				.strobe(strobe),
+				.req(CacheRequest.valid),
+				.address(CacheRequest.address),
+				.valid_dirty_in(CacheRequest.validDirty[i]),
+				.data_in(CacheRequest.data),
+				.strobe(CacheRequest.strobe),
+				.wen_data(CacheRequest.wenData[i]),
+				.wen_tag(CacheRequest.wenTag[i]),
+				.tag_in(CacheRequest.tag),
+
 				.valid_dirty_out(valid_dirty_out[i]),
 				.data_out(data_out[i]),
 				
-				.req(req),
-				
-				.wen_data(wen_data[i]),
-				.wen_tag(wen_tag[i]),
-				
-				.tag_in(tag_in),
 				.tag_out(tag_out[i])
 			);
 		end

@@ -1,56 +1,41 @@
 `timescale 1ns / 1ps
 
-module MemorySystem (input clk, input rst,
-                    // From CPU
-                    input reqValid_CPU,
-                    input [31 : 0] reqAddress_CPU,
-                    input [31 : 0]reqDataIn_CPU,
-                    input reqWen_CPU,
-                    input [3 : 0] reqStrobe_CPU,
-                    //To CPU
-                    output [31 : 0] respDataOut_CPU,    // Connect to from cache data
-                    output respHit_CPU
-                ); 
-                
-    wire [31 : 0] reqAddress_MEM, reqDataOut_MEM, respDataIn_MEM;
-    wire reqWen_MEM, respValid_MEM, reqValid_MEM;
-    wire [3 : 0] reqStrobe_MEM;
-    
+module MemorySystem import interface_pkg::*;
+(input clk, input rst,
+					// From CPU
+					input CPU_Request CPURequest,
+					//To CPU
+					output CPU_Response CPUResponse
+				); 
+				
+	Memory_Request MemoryRequest;
+	Memory_Response MemoryResponse;
+	
 
-    PhysicalCache PhysicalCache_inst 
-    (   .clk(clk), .rst(rst),
+	PhysicalCache PhysicalCache_inst 
+	(   .clk(clk), .rst(rst),
 
-        .reqValid_CPU(reqValid_CPU),
-        .address_in_CPU(reqAddress_CPU),
-        .data_in_CPU(reqDataIn_CPU),
-        .wen_CPU(reqWen_CPU),
-        .strobe_CPU(reqStrobe_CPU),
-        
-        .data_out_CPU(respDataOut_CPU),
-        .hit_CPU(respHit_CPU),
+		// From CPU
+		.CPURequest(CPURequest),
+		//To CPU
+		.CPUResponse(CPUResponse),
 
-        .reqValid_MEM(reqValid_MEM),
-        .reqAddress_MEM(reqAddress_MEM),
-        .reqDataOut_MEM(reqDataOut_MEM),
-        .reqWen_MEM(reqWen_MEM),
-        .reqStrobe_MEM(reqStrobe_MEM),
+		// To Memory
+		.MemoryRequest(MemoryRequest),
 
-        .respValid_MEM(respValid_MEM),
-        .respDataIn_MEM(respDataIn_MEM)
-    );
+		//From Memory
+		.MemoryResponse(MemoryResponse)
+	);
 
-    Memory Memory_inst
-    (
-        .clk(clk), .rst(rst),
+	Memory Memory_inst
+	(
+		.clk(clk), .rst(rst),
 
-        .reqValid(reqValid_MEM),
-        .reqAddress(reqAddress_MEM),
-        .reqDataIn(reqDataOut_MEM),
-        .reqWen(reqWen_MEM),
-        .reqStrobe(reqStrobe_MEM),
+		// To Memory
+		.MemoryRequest(MemoryRequest),
 
-        .respValid(respValid_MEM),
-        .respDataOut(respDataIn_MEM)
-    );
+		//From Memory
+		.MemoryResponse(MemoryResponse)
+	);
 
 endmodule

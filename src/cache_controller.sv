@@ -1,52 +1,27 @@
 `timescale 1ns / 1ps
 
-module CacheController #(
-		parameter ADDRESS_WIDTH = 32, 
-		parameter SETS = 1024, 
-		parameter WAYS = 2, 
-		parameter CACHE_LINE_SIZE = 32, 
-		parameter TAG_WIDTH = ADDRESS_WIDTH - ($clog2(SETS) + $clog2(CACHE_LINE_SIZE / 8))
-		)
+module CacheController import interface_pkg::*;
 (
 		input clk,
 		input rst,
 		
-		// From CPU
-		input reqValid_CPU,
-		input [ADDRESS_WIDTH - 1 : 0] reqAddress_CPU,
-		input [CACHE_LINE_SIZE -1 : 0]reqDataIn_CPU,
-		input reqWen_CPU,
-		input [(CACHE_LINE_SIZE / 8) -1 : 0] reqStrobe_CPU,
-		//To CPU
-		output reg [CACHE_LINE_SIZE - 1 : 0] respDataOut_CPU,    // Connect to from cache data
-		output reg respHit_CPU,
+		// CPU Interface
+		input CPU_Request CPURequest,
+		output CPU_Response CPUResponse,
 
-		// To Memory
-		output reqValid_MEM,
-		output [ADDRESS_WIDTH - 1 : 0] reqAddress_MEM,
-		output [CACHE_LINE_SIZE -1 : 0]reqDataOut_MEM,
-		output reqWen_MEM,
-		output [(CACHE_LINE_SIZE / 8) - 1 : 0] reqStrobe_MEM,
-		//From Memory
-		input respValid_MEM,
-		input [CACHE_LINE_SIZE - 1 : 0] respDataIn_MEM,
+		// Memory Interface
+		output Memory_Request MemoryRequest,
+		input Memory_Response MemoryResponse,
 		
 		// From Cache
-		input [CACHE_LINE_SIZE - 1 : 0] fromCacheData,
-		input [1 : 0] fromCacheValidDirty [WAYS - 1 : 0],
+		input Cache_Response CacheResponse,
+		
 		
 		// From Tag Comparator
-		input [WAYS - 1 : 0] fromTagComparatorHitVector,
+		input [cache_pkg::WAYS - 1 : 0] fromTagComparatorHitVector,
 		
 		// To Cache
-		output logic toCacheReq,
-		output [ADDRESS_WIDTH - 1 : 0] toCacheAddress,
-		output logic [CACHE_LINE_SIZE - 1 : 0] toCacheData,
-		output logic [(CACHE_LINE_SIZE / 8) - 1 : 0] toCacheStrobe,
-		output logic [WAYS - 1 : 0] toCacheWenData,
-		output [WAYS - 1 : 0] toCacheWenTag,
-		output [TAG_WIDTH - 1 : 0] toCacheTag,
-		output logic [1 : 0] toCacheValidDirty [WAYS - 1 : 0]
+		output Cache_Request CacheRequest
 
 );
 
@@ -54,6 +29,7 @@ module CacheController #(
 
 	typedef enum {	IDLE, 
 					SEND_REQ_TO_CACHE, 
+					TAG_MATCH_DELAYED,
 					TAG_MATCH, 
 					READ_HIT, 
 					WRITE_HIT, 
@@ -69,26 +45,24 @@ module CacheController #(
 
 	STATES state, nextState;
 
-	wire [TAG_WIDTH - 1 : 0] addressTag;
+	wire [cache_pkg::TAG_WIDTH - 1 : 0] addressTag;
 
-	wire tagMatched; // High if any tag matched
 	logic hit;	// High if the tag matched and the matched cache line is Valid
-	logic [WAYS - 1 : 0] hitWay;	// Which Way Hit
-	wire [WAYS - 1 : 0] replacementWay;	// TODO: Which Way to replace
+	logic [cache_pkg::WAYS - 1 : 0] hitWay;	// Which Way Hit
+	wire [cache_pkg::WAYS - 1 : 0] replacementWay;	// TODO: Which Way to replace
 
-	logic [WAYS - 1 : 0] validWays;		// Valid Ways from set read
-	logic [WAYS - 1 : 0] dirtyWays;		// Drity Ways from set read
+	logic [cache_pkg::WAYS - 1 : 0] validWays;		// Valid Ways from set read
+	logic [cache_pkg::WAYS - 1 : 0] dirtyWays;		// Drity Ways from set read
 
-	ReplacementLogic #(.WAYS(WAYS)) replacementLogic (.clk(clk), .rst(rst), .ValidWays(validWays), .replacementWay(replacementWay));
+	ReplacementLogic #(.WAYS(cache_pkg::WAYS)) replacementLogic (.clk(clk), .rst(rst), .ValidWays(validWays), .replacementWay(replacementWay));
 	
-	assign tagMatched = |fromTagComparatorHitVector;
 
-	assign addressTag = reqAddress_CPU[ADDRESS_WIDTH - 1 -: TAG_WIDTH];
+	assign addressTag = CPURequest.address[cache_pkg::ADDRESS_WIDTH - 1 -: cache_pkg::TAG_WIDTH];
 
 	// Computing Hit
 	always_comb begin
 		hit = 0;
-		for(int i = 0; i < WAYS; i++)
+		for(int i = 0; i < cache_pkg::WAYS; i++)
 			if(fromTagComparatorHitVector[i])
 				hit = 1;
 	end
@@ -101,15 +75,15 @@ module CacheController #(
 	// Computing the Valid Ways
 	always_comb begin
 		validWays = 0;
-		for(int i = 0; i < WAYS; i++)
-			validWays[i] = fromCacheValidDirty[i][0];	// First Bit is Valid
+		for(int i = 0; i < cache_pkg::WAYS; i++)
+			validWays[i] = CacheResponse.validDirty[i][0];	// First Bit is Valid
 	end
 
 	// Computing the Dirty Ways
 	always_comb begin
 		dirtyWays = 0;
-		for(int i = 0; i < WAYS; i++)
-			dirtyWays[i] = fromCacheValidDirty[i][1];	// Second bit is Dirty
+		for(int i = 0; i < cache_pkg::WAYS; i++)
+			dirtyWays[i] = CacheResponse.validDirty[i][1];	// Second bit is Dirty
 	end
 	
 	// Assigning Next state on clock cycle
@@ -125,15 +99,17 @@ module CacheController #(
 		case(state)
 			// Send request to cache if CPU sent a request
 			IDLE:
-						nextState = reqValid_CPU ? SEND_REQ_TO_CACHE : IDLE;
+						nextState = CPURequest.valid ? SEND_REQ_TO_CACHE : IDLE;
 			
 			// Do a Tag Match in the next clock cycle after request is sent 
 			SEND_REQ_TO_CACHE: 
-						nextState = TAG_MATCH;
+						nextState = TAG_MATCH_DELAYED;
 			
 			// Whether Tag Matched in any Way or not
+			TAG_MATCH_DELAYED:
+						nextState = TAG_MATCH;	// Delay due to 1 CC delay between tag match due to pipelining
 			TAG_MATCH: 
-						if(reqWen_CPU)
+						if(CPURequest.wen)
 							if(hit)
 								nextState = WRITE_HIT;
 							else 
@@ -154,17 +130,17 @@ module CacheController #(
 			WRITE_MISS:
 						nextState = SEND_REQ_TO_MEM;
 			SEND_WT_TO_MEM:
-						nextState = (reqValid_MEM) ? WAIT_WT_RESP : SEND_WT_TO_MEM;
+						nextState = (MemoryRequest.valid) ? WAIT_WT_RESP : SEND_WT_TO_MEM;
 			WAIT_WT_RESP:
-						nextState = (respValid_MEM) ? SEND_RESP_TO_CPU : WAIT_WT_RESP;
+						nextState = (MemoryResponse.valid) ? SEND_RESP_TO_CPU : WAIT_WT_RESP;
 			SEND_REQ_TO_MEM:
-						nextState = (reqValid_MEM) ? WAIT_MEM_RESP : SEND_REQ_TO_MEM;
+						nextState = (MemoryRequest.valid) ? WAIT_MEM_RESP : SEND_REQ_TO_MEM;
 			WAIT_MEM_RESP:
-						nextState = (respValid_MEM) ? CREATE_CACHE_ENTRY : WAIT_MEM_RESP;
+						nextState = (MemoryResponse.valid) ? CREATE_CACHE_ENTRY : WAIT_MEM_RESP;
 			CREATE_CACHE_ENTRY:
-						if(toCacheReq & |toCacheWenTag)   // Cache Entry is created once the request to cache is sent with a write to the tag array
+						if(CacheRequest.valid & |CacheRequest.wenTag)   // Cache Entry is created once the request to cache is sent with a write to the tag array
 							nextState = SEND_REQ_TO_CACHE;	// Resend the request to the cache after a Miss
-						else	
+						else
 							nextState = CREATE_CACHE_ENTRY;
 
 			default: nextState = IDLE;
@@ -176,66 +152,69 @@ module CacheController #(
 	// In case of a hit, the data is directly sent from the Cache
 	// In case of a Miss, the Memory serves the request and the cache
 	// is resent the request and this time it hits.
-	assign respDataOut_CPU = fromCacheData;
-	assign respHit_CPU = state == SEND_RESP_TO_CPU;
+	assign CPUResponse.data = CacheResponse.data;
+	assign CPUResponse.hit = state == SEND_RESP_TO_CPU;
 
 	// Write Data to cache will be from CPU in case of a Write Hit
 	// Write Data to cache will be from Memory in case of a Cache Entry Creation
 	always_comb begin
-		toCacheData = 0;
+		CacheRequest.data = 0;
 		if(state == WRITE_HIT)
-			toCacheData = reqDataIn_CPU;
+			CacheRequest.data = CPURequest.data;
 		else if(state == CREATE_CACHE_ENTRY)
-			toCacheData = respDataIn_MEM;
+			CacheRequest.data = MemoryResponse.data;
 	end
 
 	// Generating Strobe Signal for Cache
 	always_comb begin
-		toCacheStrobe = 0;
+		CacheRequest.strobe = 0;
 		if(state == WRITE_HIT)
-			toCacheStrobe = reqStrobe_CPU;	// Use Requested strobe on a Write Hit
+			CacheRequest.strobe = CPURequest.strobe;	// Use Requested strobe on a Write Hit
 		else if(state == CREATE_CACHE_ENTRY)
-			toCacheStrobe = '1;	// Write to all Bytes in the cache line on a Cache Entry Creation
+			CacheRequest.strobe = '1;	// Write to all Bytes in the cache line on a Cache Entry Creation
 	end
 
 	// Write Data on the hit way in case of a write hit
 	// Write Data on the Replacement way in case of a cache entry creation
 	always_comb begin
-		toCacheWenData = 0;
+		CacheRequest.wenData = 0;
 		if(state == WRITE_HIT)
-			toCacheWenData = hitWay;
+			CacheRequest.wenData = hitWay;
 		else if(state == CREATE_CACHE_ENTRY)
-			toCacheWenData = replacementWay;
+			CacheRequest.wenData = replacementWay;
 	end
 	
 	// logic for toCacheReq
 	always_comb begin
 		if(state == SEND_REQ_TO_CACHE)
-			toCacheReq = 1;	// Send request to Cache to read the Tags
+			CacheRequest.valid = 1;	// Send request to Cache to read the Tags
 		else if(state == CREATE_CACHE_ENTRY)
-			toCacheReq = 1;	// Send request to Cache to Create a new entry
+			CacheRequest.valid = 1;	// Send request to Cache to Create a new entry
 		else if(state == WRITE_HIT)
-			toCacheReq = 1;	// Send request to Cache to Write the data
+			CacheRequest.valid = 1;	// Send request to Cache to Write the data
 		else 
-			toCacheReq = 0;
+			CacheRequest.valid = 0;
 	end
 
 	// assign toCacheAddress = state == SEND_REQ_TO_CACHE | state == CREATE_CACHE_ENTRY | state == TAG_MATCH ? reqAddress_CPU : 0;	// Tag Comparator also needs Address during TAG_MATCH phase
-	assign toCacheAddress = reqAddress_CPU;
-	assign toCacheWenTag = state == CREATE_CACHE_ENTRY ? replacementWay : 0;
-	assign toCacheTag = addressTag;
+	assign CacheRequest.address = CPURequest.address;
+	assign CacheRequest.wenTag = state == CREATE_CACHE_ENTRY ? replacementWay : 0;
+	assign CacheRequest.tag = addressTag;
 
-	assign reqValid_MEM = (state == SEND_REQ_TO_MEM) | (state == WAIT_MEM_RESP) | (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
-	assign reqAddress_MEM = reqAddress_CPU;
-	assign reqWen_MEM = (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
-	assign reqDataOut_MEM = reqDataIn_CPU;	// In case of a write back, we need to get this data from the Cache itself
-	assign reqStrobe_MEM = reqStrobe_CPU;	// In case of a write back, we need to make all the bits 1
+	assign MemoryRequest.valid = 	(state == SEND_REQ_TO_MEM) 	| 
+									(state == WAIT_MEM_RESP) 	| 
+									(state == SEND_WT_TO_MEM) 	| 
+									(state == WAIT_WT_RESP);
+	assign MemoryRequest.address = CPURequest.address;
+	assign MemoryRequest.wen = (state == SEND_WT_TO_MEM) | (state == WAIT_WT_RESP);
+	assign MemoryRequest.data = CPURequest.data;	// In case of a write back, we need to get this data from the Cache itself
+	assign MemoryRequest.strobe = CPURequest.strobe;	// In case of a write back, we need to make all the bits 1
 
 	always_comb begin
-		for(int i = 0; i < WAYS; i++) begin
-			toCacheValidDirty[i] = 2'b00;
+		for(int i = 0; i < cache_pkg::WAYS; i++) begin
+			CacheRequest.validDirty[i] = 2'b00;
 			if(replacementWay[i] == 1'b1)
-				toCacheValidDirty[i] = 2'b01;	// 0th bit is valid
+				CacheRequest.validDirty[i] = 2'b01;	// 0th bit is valid
 		end
 	end
 
@@ -243,10 +222,10 @@ module CacheController #(
 `ifdef LOGGING
 	always_ff @(posedge clk)
 		case(state)
-			READ_HIT: $display("[Read Hit] Address: 0x%x", reqAddress_CPU);
-			WRITE_HIT: $display("[Write Hit] Address: 0x%x\tData: 0x%x", reqAddress_CPU, reqDataIn_CPU);
-			READ_MISS: $display("[Read Miss] Address: 0x%x", reqAddress_CPU);
-			WRITE_MISS: $display("[Write Miss] Address: 0x%x\tData: 0x%x", reqAddress_CPU, reqDataIn_CPU);
+			READ_HIT: $display("[Read Hit] Address: 0x%x", CPURequest.address);
+			WRITE_HIT: $display("[Write Hit] Address: 0x%x\tData: 0x%x", CPURequest.address, CPURequest.data);
+			READ_MISS: $display("[Read Miss] Address: 0x%x", CPURequest.address);
+			WRITE_MISS: $display("[Write Miss] Address: 0x%x\tData: 0x%x", CPURequest.address, CPURequest.data);
 		endcase
 
 `endif
