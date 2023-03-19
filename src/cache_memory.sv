@@ -142,31 +142,27 @@ module WayBlock #(
 
 endmodule
 
-module CacheMemory import interface_pkg::*;
-	 #(
-		parameter ADDRESS_WIDTH = 32, 
-		parameter SETS = 1024, 
-		parameter WAYS = 2, 
-		parameter CACHE_LINE_SIZE = 32, 
-		parameter TAG_WIDTH = ADDRESS_WIDTH - ($clog2(SETS) + $clog2(CACHE_LINE_SIZE / 8))
-		) (
+import interface_pkg::*;
+
+module CacheMemory
+(
 	input clk,
 	input rst,
 
 	input Cache_Request CacheRequest,
 	
-	output reg [CACHE_LINE_SIZE - 1 : 0] data_out [WAYS - 1 : 0],
-	output [1 : 0] [WAYS - 1 : 0] valid_dirty_out ,		// TODO: Not sure if it should be [1 : 0] [WAYS - 1 : 0] or [WAYS - 1 : 0] [1 : 0]
+	output reg [cache_pkg::CACHE_LINE_SIZE - 1 : 0] data_out [cache_pkg::WAYS - 1 : 0],
+	output [1 : 0] [cache_pkg::WAYS - 1 : 0] valid_dirty_out ,		// TODO: Not sure if it should be [1 : 0] [WAYS - 1 : 0] or [WAYS - 1 : 0] [1 : 0]
 														// Make the same change in the Tag Comaprator
 
 	
-	output [TAG_WIDTH - 1 : 0] tag_out [WAYS - 1 : 0]
+	output [cache_pkg::TAG_WIDTH - 1 : 0] tag_out [cache_pkg::WAYS - 1 : 0]
 );
 
 	genvar i;
 	generate 
-		for(i = 0; i < WAYS; i++) begin: WAY_BLOCK_GENERATOR
-			WayBlock #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .SETS(SETS), .WAYS(WAYS), .CACHE_LINE_SIZE(CACHE_LINE_SIZE), .TAG_WIDTH(TAG_WIDTH)) way_block_inst
+		for(i = 0; i < cache_pkg::WAYS; i++) begin: WAY_BLOCK_GENERATOR
+			WayBlock #(.ADDRESS_WIDTH(cache_pkg::ADDRESS_WIDTH), .SETS(cache_pkg::SETS), .WAYS(cache_pkg::WAYS), .CACHE_LINE_SIZE(cache_pkg::CACHE_LINE_SIZE), .TAG_WIDTH(cache_pkg::TAG_WIDTH)) way_block_inst
 				(.clk(clk),
 				.rst(rst),
 				

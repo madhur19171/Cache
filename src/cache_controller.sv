@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
-module CacheController import interface_pkg::*;
+import interface_pkg::*;
+
+module CacheController
 (
 		input clk,
 		input rst,

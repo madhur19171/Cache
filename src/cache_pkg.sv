@@ -7,7 +7,7 @@ package cache_pkg;
 
 	parameter STROBE_WIDTH = (CACHE_LINE_SIZE / 8);
 
-endpackage;
+endpackage
 
 
 package memory_pkg;
@@ -18,7 +18,7 @@ package memory_pkg;
 
 	parameter ENTRIES = 1024;
 	parameter DELAY = 4;
-endpackage;
+endpackage
 
 package interface_pkg;
 
@@ -64,4 +64,4 @@ package interface_pkg;
 		logic [1 : 0][cache_pkg::WAYS - 1 : 0]		validDirty;
 	} Cache_Response;
 
-endpackage;
+endpackage

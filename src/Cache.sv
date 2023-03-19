@@ -1,30 +1,28 @@
 `timescale 1ns / 1ps
 
+import interface_pkg::*;
 
-module TagComparator  #(
-		parameter ADDRESS_WIDTH = 32, 
-		parameter SETS = 1024, 
-		parameter WAYS = 2, 
-		parameter CACHE_LINE_SIZE = 32,
-		parameter TAG_WIDTH = ADDRESS_WIDTH - ($clog2(SETS) + $clog2(CACHE_LINE_SIZE / 8))
-		)
+// Tag Comaparator takes 1 CC to generate hit/miss.
+// This is done to pipeline the Tag Array access and Comparision which is combinational
+// This should potentially increase the clock frequency but also increases the hit/miss reporting time
+module TagComparator
 	(
-	    input clk,
-	    input rst,
-		input [TAG_WIDTH - 1 : 0] tag_in [WAYS - 1 : 0],
-		input [1 : 0] [WAYS - 1 : 0] valid_dirty,
-		input [ADDRESS_WIDTH - 1 : 0] address_in,
+	   input clk,
+	   input rst,
+		input [cache_pkg::TAG_WIDTH - 1 : 0] tag_in [cache_pkg::WAYS - 1 : 0],
+		input [1 : 0] [cache_pkg::WAYS - 1 : 0] valid_dirty,
+		input [cache_pkg::ADDRESS_WIDTH - 1 : 0] address_in,
 		
-		output reg [WAYS - 1 : 0] hitVector,
-		output reg [$clog2(WAYS) - 1 : 0] selectLine
+		output reg [cache_pkg::WAYS - 1 : 0] hitVector,
+		output reg [$clog2(cache_pkg::WAYS) - 1 : 0] selectLine
 	);
 	
-		wire [TAG_WIDTH - 1 : 0] addressTag;
+		wire [cache_pkg::TAG_WIDTH - 1 : 0] addressTag;
 		
-		assign addressTag = address_in[ADDRESS_WIDTH - 1 -: TAG_WIDTH];
+		assign addressTag = address_in[cache_pkg::ADDRESS_WIDTH - 1 -: cache_pkg::TAG_WIDTH];
 	
 		always_ff @(posedge clk) begin:HIT_VECTOR_GENERATION
-			for(int i = 0; i < WAYS; i++) begin
+			for(int i = 0; i < cache_pkg::WAYS; i++) begin
 				if(addressTag == tag_in[i] & (valid_dirty[i][0] == 1))
 					hitVector[i] = 1;
 				else 
@@ -34,7 +32,7 @@ module TagComparator  #(
 		
 		always_ff @(posedge clk) begin:SELECT_LINE_GENERATION
 			selectLine = 0;
-			for(int i = 0; i < WAYS; i++) begin
+			for(int i = 0; i < cache_pkg::WAYS; i++) begin
 				if((addressTag == tag_in[i]) & (valid_dirty[i][0] == 1))
 					selectLine = i;
 			end
@@ -42,7 +40,7 @@ module TagComparator  #(
 	
 endmodule
 
-module PhysicalCache import interface_pkg::*; import cache_pkg::*;
+module PhysicalCache
 	(
 		input clk,
 		input rst,
@@ -56,11 +54,11 @@ module PhysicalCache import interface_pkg::*; import cache_pkg::*;
 		input Memory_Response MemoryResponse
 	);
 	
-	wire [CACHE_LINE_SIZE - 1 : 0] data_out_way [WAYS - 1 : 0];
-	wire [TAG_WIDTH - 1 : 0] tag_out_way [WAYS - 1 : 0];
+	wire [cache_pkg::CACHE_LINE_SIZE - 1 : 0] data_out_way [cache_pkg::WAYS - 1 : 0];
+	wire [cache_pkg::TAG_WIDTH - 1 : 0] tag_out_way [cache_pkg::WAYS - 1 : 0];
 	
-	wire [WAYS - 1 : 0] hitVector;
-	wire [$clog2(WAYS) - 1 : 0] selectLine;
+	wire [cache_pkg::WAYS - 1 : 0] hitVector;
+	wire [$clog2(cache_pkg::WAYS) - 1 : 0] selectLine;
 	
 	Cache_Request CacheRequest; 
 
@@ -92,7 +90,7 @@ module PhysicalCache import interface_pkg::*; import cache_pkg::*;
 		.CacheRequest(CacheRequest)
 		);
 	
-	CacheMemory #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .SETS(SETS), .WAYS(WAYS), .CACHE_LINE_SIZE(CACHE_LINE_SIZE), .TAG_WIDTH(TAG_WIDTH)) cacheMemory
+	CacheMemory cacheMemory
 		(
 			.clk(clk),
 			.rst(rst),
@@ -109,7 +107,7 @@ module PhysicalCache import interface_pkg::*; import cache_pkg::*;
 			.tag_out(tag_out_way)
 		);
 		
-	TagComparator #(.ADDRESS_WIDTH(ADDRESS_WIDTH), .SETS(SETS), .WAYS(WAYS), .CACHE_LINE_SIZE(CACHE_LINE_SIZE), .TAG_WIDTH(TAG_WIDTH)) tagComparator
+	TagComparator tagComparator
 		(
 		    .clk(clk),
 		    .rst(rst),

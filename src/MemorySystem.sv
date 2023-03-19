@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
-module MemorySystem import interface_pkg::*;
+import interface_pkg::*;
+
+module MemorySystem
 (input clk, input rst,
 					// From CPU
 					input CPU_Request CPURequest,
